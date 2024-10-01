@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="utf-8">
+
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://k-monk.org/blog/minimal-parenthesization-of-lambda-terms/">
+  <meta property="og:site_name" content="River Dillon">
+  <meta property="og:image" content="https://k-monk.org/profile.jpg">
+  <meta property="og:image:secure_url" content="https://k-monk.org/profile.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="400">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@k__monk">
+  <meta name="twitter:creator" content="@k__monk">
+  <meta name="twitter:image" content="https://k-monk.org/profile.jpg">
+
+  
+  <meta name="twitter:title" content="Minimal Parenthesization of Lambda Terms">
+  <meta name="twitter:description" content="Max Bernstein has written about a simple algorithm that finds the minimal parenthesization necessary for terms in an arithmetic expression language. We'll apply the same idea to the simply typed lambda calculus (implemented in OCaml).">
+  <meta property="og:title" content="Minimal Parenthesization of Lambda Terms">
+  <meta property="og:description" content="Max Bernstein has written about a simple algorithm that finds the minimal parenthesization necessary for terms in an arithmetic expression language. We'll apply the same idea to the simply typed lambda calculus (implemented in OCaml).">
+
+
+  <title>Minimal Parenthesization of Lambda Terms</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+
+  <style>
+
+:root { font-family: 'Inter', sans-serif; }
+@supports (font-variation-settings: normal) {
+  :root { font-family: 'Inter var', sans-serif; }
+}
+
+body {
+
+  background-color: WhiteSmoke;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+
+  code {
+    font-size: small;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: max-content auto;
+  }
+
+  dt {
+    grid-column-start: 1;
+  }
+
+  dd {
+    grid-column-start: 2;
+  }
+
+  dt.post-date {
+    font-family: monospace;
+  }
+
+  ul.navbar {
+    display: flex;
+    list-style: none;
+    padding-left: 0px;
+  }
+
+  li.nav {
+    padding-right: 20px;
+  }
+
+  header.nav-header {
+    background-color: lavender;
+  }
+
+}
+
+  </style>
+
+</head>
+
+<body>
+
+  <header class="nav-header">
+    <ul class="navbar">
+      <li class="nav"><a href="/">HOME</a></li>
+      <li class="nav"><a href="/blog">BLOG</a></li>
+      <li class="nav"><a href="/atom.xml">ATOM</a></li>
+    </ul>
+  </header>
+
+  <section class="section">
+
+    <div class="container">
+      
+<h1 class="title">Minimal Parenthesization of Lambda Terms</h1>
+<p class="subtitle"><strong>2024-09-15</strong></p>
+<p><em>Thanks to <a rel="noopener" target="_blank" href="https://bernsteinbear.com/">Max Bernstein</a> for inspiring me to write this down.</em></p>
+<p>When writing a compiler, it's useful to be able to visualize the syntax tree as it gets processed. One simple way of doing so is to serialize the tree to text, using parentheses to specify the structure. The most naive approach is to simply wrap every subexpression in parentheses, which means we get representations that look like</p>
+<pre style="background-color:#ffffff;color:#000000;"><code><span>(((((((((1 + 2) + 3) + 4) + 5) + 6) + 7) + 8) + 9) + 10)
+</span></code></pre>
+<p>even though a human would have probably written the term as</p>
+<pre style="background-color:#ffffff;color:#000000;"><code><span>1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+</span></code></pre>
+<p>As terms become bigger, excessive parentheses make it hard to look at a term and quickly understand its structure. Max Bernstein has <a rel="noopener" target="_blank" href="https://bernsteinbear.com/blog/precedence-printing/">written</a> about a simple algorithm that finds the minimal parenthesization necessary for terms in an arithmetic expression language. We'll apply the same idea to the <a rel="noopener" target="_blank" href="https://en.wikipedia.org/wiki/Simply_typed_lambda_calculus">simply typed lambda calculus</a> (implemented in OCaml).</p>
+<h3 id="the-term-language">The Term Language</h3>
+<p>Our calculus will have a single base type of machine integers:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">type ty </span><span>=
+</span><span>  | </span><span style="color:#21439c;">Z64                 </span><span style="color:#919191;">(* machine integers *)
+</span><span>  | </span><span style="color:#21439c;">Arrow </span><span style="color:#ff5600;">of ty * ty    </span><span style="color:#919191;">(* functions        *)
+</span></code></pre>
+<p>We'll use strings as identifiers:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">type identifier </span><span>= </span><span style="color:#ff5600;">string
+</span><span>
+</span><span style="color:#919191;">(* associate an identifier with some value *)
+</span><span style="color:#ff5600;">type &#39;a binding </span><span>= {
+</span><span>  name : </span><span style="color:#ff5600;">identifier ;
+</span><span>  value : </span><span style="color:#ff5600;">&#39;a ;
+</span><span>}
+</span></code></pre>
+<p>We'll include primitive operations for integer addition, subtraction, multiplication, and exponentiation:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">type binop </span><span>=
+</span><span>  | </span><span style="color:#21439c;">Add
+</span><span>  | </span><span style="color:#21439c;">Sub
+</span><span>  | </span><span style="color:#21439c;">Mul
+</span><span>  | </span><span style="color:#21439c;">Exp
+</span></code></pre>
+<p>Expressions are defined as follows:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">type expression </span><span>=
+</span><span>  | </span><span style="color:#21439c;">Lit </span><span style="color:#ff5600;">of int                                  </span><span style="color:#919191;">(* integer literal      *)
+</span><span>  | </span><span style="color:#21439c;">Bin </span><span style="color:#ff5600;">of binop * expression * expression      </span><span style="color:#919191;">(* integer arithmetic   *)
+</span><span>  | </span><span style="color:#21439c;">Var </span><span style="color:#ff5600;">of identifier                           </span><span style="color:#919191;">(* variable             *)
+</span><span>  | </span><span style="color:#21439c;">App </span><span style="color:#ff5600;">of expression * expression              </span><span style="color:#919191;">(* function application *)
+</span><span>  | </span><span style="color:#21439c;">Abs </span><span style="color:#ff5600;">of ty binding * expression              </span><span style="color:#919191;">(* function abstraction *)
+</span></code></pre>
+<h3 id="representing-types">Representing Types</h3>
+<p>Let's start by considering the problem in the case of types, which have a relatively simple grammar. A naive implementation might look something like the following:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">let </span><span>print </span><span style="color:#ff5600;">= </span><span>Printf.sprintf
+</span><span>
+</span><span style="color:#ff5600;">let rec </span><span style="color:#21439c;">naive_show_ty </span><span>: </span><span style="color:#ff5600;">ty -&gt; string = function
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Z64 </span><span>-&gt; </span><span style="color:#00a33f;">&quot;Z&quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Arrow </span><span>(domain, codomain) -&gt;
+</span><span>      print </span><span style="color:#00a33f;">&quot;(%s -&gt; %s)&quot; </span><span>(naive_show_ty domain) (naive_show_ty codomain)
+</span></code></pre>
+<p>This will represent the type <code>Arrow (Z64, Arrow (Z64, Z64))</code> as <code>"(Z -&gt; (Z -&gt; Z))"</code>. If we take function arrows to be right associative (as they conventionally are), then this could have been represented as <code>"Z -&gt; Z -&gt; Z"</code>.</p>
+<p>In the case of types, the only information we need is <em>whether we are on the left of a function arrow</em>, in which case an arrow will need to be parenthesized. We can pass that information down, recursively. The resulting algorithm is:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">let </span><span style="color:#21439c;">show_ty </span><span>: </span><span style="color:#ff5600;">ty -&gt; string =
+</span><span>  </span><span style="color:#ff5600;">let rec </span><span style="color:#21439c;">show </span><span>(left </span><span style="color:#ff5600;">: bool</span><span>) </span><span style="color:#ff5600;">= function
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Z64 </span><span>-&gt; </span><span style="color:#00a33f;">&quot;Z&quot;
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Arrow </span><span>(domain, codomain) -&gt;
+</span><span>        </span><span style="color:#ff5600;">let </span><span>representation </span><span style="color:#ff5600;">=</span><span> print </span><span style="color:#00a33f;">&quot;%s -&gt; %s&quot; </span><span>(show </span><span style="color:#a535ae;">true</span><span> domain) (show </span><span style="color:#a535ae;">false</span><span> codomain) </span><span style="color:#ff5600;">in
+</span><span>        </span><span style="color:#ff5600;">if</span><span> left </span><span style="color:#ff5600;">then</span><span> print </span><span style="color:#00a33f;">&quot;(%s)&quot;</span><span> representation </span><span style="color:#ff5600;">else</span><span> representation </span><span style="color:#ff5600;">in
+</span><span>  show </span><span style="color:#a535ae;">false
+</span></code></pre>
+<h3 id="representing-terms">Representing Terms</h3>
+<p>The same kind of idea applies to the more complicated grammar of terms. <strong>The key insight is that parenthesization decisions require only local context: parentheses are necessary if and only if the precedence of an operation is less than or equal to the precedence of the parent.</strong> For example, the fact that <code>3 + 4</code> must be parenthesized in <code>1 + 2 * (3 + 4) - 5</code> depends only on the fact that <code>+</code> has lower precedence than <code>*</code>.</p>
+<p>As we descend the syntax tree, we'll pass down the precedence of each parent. In other words, we'll pass down the <em>minimum precedence needed to avoid parenthesization</em> at each step. (Associativity may be understood as requiring one less level of precedence on the associative side.)</p>
+<p>Here's the precedence and associativity table for our expression language:</p>
+<pre style="background-color:#ffffff;color:#000000;"><code><span>OPERATION     PRECEDENCE  ASSOCIATIVITY
+</span><span>lambda        1           n/a
+</span><span>+             2           left
+</span><span>-             2           left
+</span><span>*             3           left
+</span><span>^             4           right
+</span><span>application   5           left
+</span></code></pre>
+<p>We'll express our text serialization algorithm in terms of nullary, unary, and binary operations with precedence and associativity. To do this, we'll define a data structure that captures the relevant properties of an operation:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">type associativity </span><span>=
+</span><span>  | </span><span style="color:#21439c;">Left
+</span><span>  | </span><span style="color:#21439c;">Right
+</span><span>
+</span><span style="color:#ff5600;">type precedence </span><span>= </span><span style="color:#ff5600;">int
+</span><span>
+</span><span style="color:#ff5600;">type operation </span><span>=
+</span><span>  | </span><span style="color:#21439c;">Nullary
+</span><span>  | </span><span style="color:#21439c;">Unary   </span><span style="color:#ff5600;">of precedence * expression
+</span><span>  </span><span style="color:#919191;">(* associativity is only applicable in the case of binary operations *)
+</span><span>  | </span><span style="color:#21439c;">Binary  </span><span style="color:#ff5600;">of precedence * associativity * expression * expression
+</span></code></pre>
+<p>Mapping our expression language into this form is straightforward:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">let </span><span style="color:#21439c;">structure </span><span>: </span><span style="color:#ff5600;">expression -&gt; operation = function
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Lit </span><span style="color:#a535ae;">_ </span><span>-&gt; </span><span style="color:#21439c;">Nullary
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Bin </span><span>(op, lhs, rhs) -&gt;
+</span><span>      </span><span style="color:#ff5600;">begin match</span><span> op </span><span style="color:#ff5600;">with
+</span><span>      </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Add </span><span>-&gt; </span><span style="color:#21439c;">Binary </span><span>(2, </span><span style="color:#21439c;">Left</span><span> , lhs, rhs)
+</span><span>      </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Sub </span><span>-&gt; </span><span style="color:#21439c;">Binary </span><span>(2, </span><span style="color:#21439c;">Left</span><span> , lhs, rhs)
+</span><span>      </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Mul </span><span>-&gt; </span><span style="color:#21439c;">Binary </span><span>(3, </span><span style="color:#21439c;">Left</span><span> , lhs, rhs)
+</span><span>      </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Exp </span><span>-&gt; </span><span style="color:#21439c;">Binary </span><span>(4, </span><span style="color:#21439c;">Right</span><span>, lhs, rhs)
+</span><span>      </span><span style="color:#ff5600;">end
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Var </span><span style="color:#a535ae;">_ </span><span>-&gt; </span><span style="color:#21439c;">Nullary
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">App </span><span>(f, x) -&gt; </span><span style="color:#21439c;">Binary </span><span>(5, </span><span style="color:#21439c;">Left</span><span>, f, x)
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Abs </span><span>(_, body) -&gt; </span><span style="color:#21439c;">Unary </span><span>(1, body)
+</span></code></pre>
+<p>These precedence and associativity values could be read from some other source here, if we wanted to share the data with a parser.</p>
+<p>Notice that lambda abstraction is a unary operator, but it doesn't have a constant textual representation in the way that the arithmetic operators do. To account for this, we'll express the representation of a node as a function:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">let </span><span style="color:#21439c;">node_text </span><span>: </span><span style="color:#ff5600;">expression -&gt; string = function
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Lit </span><span>i -&gt; print </span><span style="color:#00a33f;">&quot;%d&quot;</span><span> i
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Bin </span><span>(Add, _, _) -&gt; </span><span style="color:#00a33f;">&quot; + &quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Bin </span><span>(Sub, _, _) -&gt; </span><span style="color:#00a33f;">&quot; - &quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Bin </span><span>(Mul, _, _) -&gt; </span><span style="color:#00a33f;">&quot; * &quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Bin </span><span>(Exp, _, _) -&gt; </span><span style="color:#00a33f;">&quot; ^ &quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Var </span><span>id -&gt; id
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">App </span><span style="color:#a535ae;">_ </span><span>-&gt; </span><span style="color:#00a33f;">&quot; &quot;
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Abs </span><span>({ name ; value = domain }, _) -&gt;
+</span><span>      print </span><span style="color:#00a33f;">&quot;λ %s : %s . &quot;</span><span> name (show_ty domain)
+</span></code></pre>
+<p>At this point, we're ready to write the complete serializer:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">let </span><span style="color:#21439c;">show_expression </span><span>: </span><span style="color:#ff5600;">expression -&gt; string =
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* wrap a string in parentheses when a condition is met *)
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">wrap </span><span>(s </span><span style="color:#ff5600;">: string</span><span>) (condition </span><span style="color:#ff5600;">: bool</span><span>) </span><span style="color:#ff5600;">=
+</span><span>    </span><span style="color:#ff5600;">if</span><span> condition </span><span style="color:#ff5600;">then</span><span> print </span><span style="color:#00a33f;">&quot;(%s)&quot;</span><span> s </span><span style="color:#ff5600;">else</span><span> s </span><span style="color:#ff5600;">in
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let rec </span><span style="color:#21439c;">show </span><span>(p </span><span style="color:#ff5600;">: precedence</span><span>) (expr </span><span style="color:#ff5600;">: expression</span><span>) </span><span style="color:#ff5600;">=
+</span><span>    </span><span style="color:#ff5600;">let </span><span>atom </span><span style="color:#ff5600;">=</span><span> node_text expr </span><span style="color:#ff5600;">in
+</span><span>    </span><span style="color:#ff5600;">match</span><span> structure expr </span><span style="color:#ff5600;">with
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Nullary </span><span>-&gt; atom
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Unary </span><span>(p&#39;, e) -&gt;
+</span><span>        </span><span style="color:#ff5600;">let </span><span>s </span><span style="color:#ff5600;">=</span><span> print </span><span style="color:#00a33f;">&quot;%s%s&quot;</span><span> atom (show (p&#39; </span><span style="color:#ff5600;">- </span><span>1) e) </span><span style="color:#ff5600;">in
+</span><span>        wrap s (p&#39; </span><span style="color:#ff5600;">&lt;=</span><span> p)
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Binary </span><span>(p&#39;, assoc, lhs, rhs) -&gt;
+</span><span>        </span><span style="color:#ff5600;">let </span><span>(left, right) </span><span style="color:#ff5600;">= match</span><span> assoc </span><span style="color:#ff5600;">with
+</span><span>        </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Left  </span><span>-&gt; (p&#39; </span><span style="color:#ff5600;">- </span><span>1, p&#39;)
+</span><span>        </span><span style="color:#ff5600;">| </span><span style="color:#21439c;">Right </span><span>-&gt; (p&#39;, p&#39; </span><span style="color:#ff5600;">- </span><span>1) </span><span style="color:#ff5600;">in
+</span><span>        </span><span style="color:#ff5600;">let </span><span>s </span><span style="color:#ff5600;">=</span><span> print </span><span style="color:#00a33f;">&quot;%s%s%s&quot; </span><span>(show left lhs) atom (show right rhs) </span><span style="color:#ff5600;">in
+</span><span>        wrap s (p&#39; </span><span style="color:#ff5600;">&lt;=</span><span> p) </span><span style="color:#ff5600;">in
+</span><span>
+</span><span>  show 0
+</span></code></pre>
+<p>For unary and binary operators, the pattern is the same: we compare the precedence of the subterm we're looking at (p') to the minimum precedence passed down by the parent (p). When p' isn't greater than the minimum, we wrap the subterm in parentheses. When an operator is left or right associative, we subtract one from the minimum precedence to pass down on the left or right, respectively.</p>
+<p>This gives us representations that look like this:</p>
+<pre style="background-color:#ffffff;color:#000000;"><code><span>(λ a : Z . λ b : Z . a + b) 1 2 * (λ a : Z . λ b : Z . a - b) 3 4
+</span></code></pre>
+<h3 id="resources">Resources</h3>
+<ul>
+<li>the source code in this document is available <a rel="noopener" target="_blank" href="https://github.com/rdck/minimal-parenthesization">here</a></li>
+<li>Max Bernstein's <a rel="noopener" target="_blank" href="https://bernsteinbear.com/blog/precedence-printing/">implementation</a> that inspired this article</li>
+<li>a <a rel="noopener" target="_blank" href="https://softwarefoundations.cis.upenn.edu/plf-current/Stlc.html">chapter</a> on the simply typed lambda calculus in <a rel="noopener" target="_blank" href="https://softwarefoundations.cis.upenn.edu/">Software Foundations</a></li>
+</ul>
+
+
+    </div>
+
+    <div>
+      <br><br><br>
+    </div>
+
+    <div style="text-align:center">
+      <a href='https://webring.recurse.com'><img src='https://webring.recurse.com/icon.png' height=40px></a>
+      <br>
+      <a href='https://webring.recurse.com'>recurse center webring</a>
+    </div>
+
+  </section>
+</body>
+
+</html>

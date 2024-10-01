@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>River Dillon</title>
+    <subtitle>mutterings</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://k-monk.org/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://k-monk.org"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-09-15T00:00:00+00:00</updated>
+    <id>https://k-monk.org/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Minimal Parenthesization of Lambda Terms</title>
+        <published>2024-09-15T00:00:00+00:00</published>
+        <updated>2024-09-15T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              River Dillon
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://k-monk.org/blog/minimal-parenthesization-of-lambda-terms/"/>
+        <id>https://k-monk.org/blog/minimal-parenthesization-of-lambda-terms/</id>
+        
+        <content type="html" xml:base="https://k-monk.org/blog/minimal-parenthesization-of-lambda-terms/">&lt;p&gt;&lt;em&gt;Thanks to &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;bernsteinbear.com&#x2F;&quot;&gt;Max Bernstein&lt;&#x2F;a&gt; for inspiring me to write this down.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;When writing a compiler, it&#x27;s useful to be able to visualize the syntax tree as it gets processed. One simple way of doing so is to serialize the tree to text, using parentheses to specify the structure. The most naive approach is to simply wrap every subexpression in parentheses, which means we get representations that look like&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#000000;&quot;&gt;&lt;code&gt;&lt;span&gt;(((((((((1 + 2) + 3) + 4) + 5) + 6) + 7) + 8) + 9) + 10)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;even though a human would have probably written the term as&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#000000;&quot;&gt;&lt;code&gt;&lt;span&gt;1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;As terms become bigger, excessive parentheses make it hard to look at a term and quickly understand its structure. Max Bernstein has &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;bernsteinbear.com&#x2F;blog&#x2F;precedence-printing&#x2F;&quot;&gt;written&lt;&#x2F;a&gt; about a simple algorithm that finds the minimal parenthesization necessary for terms in an arithmetic expression language. We&#x27;ll apply the same idea to the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Simply_typed_lambda_calculus&quot;&gt;simply typed lambda calculus&lt;&#x2F;a&gt; (implemented in OCaml).&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;the-term-language&quot;&gt;The Term Language&lt;&#x2F;h3&gt;
+&lt;p&gt;Our calculus will have a single base type of machine integers:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type ty &lt;&#x2F;span&gt;&lt;span&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Z64                 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* machine integers *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Arrow &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of ty * ty    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* functions        *)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We&#x27;ll use strings as identifiers:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type identifier &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;string
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* associate an identifier with some value *)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a binding &lt;&#x2F;span&gt;&lt;span&gt;= {
+&lt;&#x2F;span&gt;&lt;span&gt;  name : &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;identifier ;
+&lt;&#x2F;span&gt;&lt;span&gt;  value : &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a ;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We&#x27;ll include primitive operations for integer addition, subtraction, multiplication, and exponentiation:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type binop &lt;&#x2F;span&gt;&lt;span&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Add
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Sub
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Mul
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Exp
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Expressions are defined as follows:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type expression &lt;&#x2F;span&gt;&lt;span&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Lit &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of int                                  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* integer literal      *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of binop * expression * expression      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* integer arithmetic   *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of identifier                           &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* variable             *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;App &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of expression * expression              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* function application *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Abs &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of ty binding * expression              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* function abstraction *)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;representing-types&quot;&gt;Representing Types&lt;&#x2F;h3&gt;
+&lt;p&gt;Let&#x27;s start by considering the problem in the case of types, which have a relatively simple grammar. A naive implementation might look something like the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Printf.sprintf
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let rec &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;naive_show_ty &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;ty -&amp;gt; string = function
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Z64 &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;Z&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Arrow &lt;&#x2F;span&gt;&lt;span&gt;(domain, codomain) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;      print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;(%s -&amp;gt; %s)&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;(naive_show_ty domain) (naive_show_ty codomain)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This will represent the type &lt;code&gt;Arrow (Z64, Arrow (Z64, Z64))&lt;&#x2F;code&gt; as &lt;code&gt;&quot;(Z -&amp;gt; (Z -&amp;gt; Z))&quot;&lt;&#x2F;code&gt;. If we take function arrows to be right associative (as they conventionally are), then this could have been represented as &lt;code&gt;&quot;Z -&amp;gt; Z -&amp;gt; Z&quot;&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;In the case of types, the only information we need is &lt;em&gt;whether we are on the left of a function arrow&lt;&#x2F;em&gt;, in which case an arrow will need to be parenthesized. We can pass that information down, recursively. The resulting algorithm is:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;show_ty &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;ty -&amp;gt; string =
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let rec &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;show &lt;&#x2F;span&gt;&lt;span&gt;(left &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;: bool&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= function
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Z64 &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;Z&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Arrow &lt;&#x2F;span&gt;&lt;span&gt;(domain, codomain) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;representation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;%s -&amp;gt; %s&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;(show &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;true&lt;&#x2F;span&gt;&lt;span&gt; domain) (show &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;false&lt;&#x2F;span&gt;&lt;span&gt; codomain) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; left &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;then&lt;&#x2F;span&gt;&lt;span&gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;(%s)&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; representation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;else&lt;&#x2F;span&gt;&lt;span&gt; representation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;  show &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;false
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;representing-terms&quot;&gt;Representing Terms&lt;&#x2F;h3&gt;
+&lt;p&gt;The same kind of idea applies to the more complicated grammar of terms. &lt;strong&gt;The key insight is that parenthesization decisions require only local context: parentheses are necessary if and only if the precedence of an operation is less than or equal to the precedence of the parent.&lt;&#x2F;strong&gt; For example, the fact that &lt;code&gt;3 + 4&lt;&#x2F;code&gt; must be parenthesized in &lt;code&gt;1 + 2 * (3 + 4) - 5&lt;&#x2F;code&gt; depends only on the fact that &lt;code&gt;+&lt;&#x2F;code&gt; has lower precedence than &lt;code&gt;*&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;As we descend the syntax tree, we&#x27;ll pass down the precedence of each parent. In other words, we&#x27;ll pass down the &lt;em&gt;minimum precedence needed to avoid parenthesization&lt;&#x2F;em&gt; at each step. (Associativity may be understood as requiring one less level of precedence on the associative side.)&lt;&#x2F;p&gt;
+&lt;p&gt;Here&#x27;s the precedence and associativity table for our expression language:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#000000;&quot;&gt;&lt;code&gt;&lt;span&gt;OPERATION     PRECEDENCE  ASSOCIATIVITY
+&lt;&#x2F;span&gt;&lt;span&gt;lambda        1           n&#x2F;a
+&lt;&#x2F;span&gt;&lt;span&gt;+             2           left
+&lt;&#x2F;span&gt;&lt;span&gt;-             2           left
+&lt;&#x2F;span&gt;&lt;span&gt;*             3           left
+&lt;&#x2F;span&gt;&lt;span&gt;^             4           right
+&lt;&#x2F;span&gt;&lt;span&gt;application   5           left
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We&#x27;ll express our text serialization algorithm in terms of nullary, unary, and binary operations with precedence and associativity. To do this, we&#x27;ll define a data structure that captures the relevant properties of an operation:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type associativity &lt;&#x2F;span&gt;&lt;span&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Right
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type precedence &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;int
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type operation &lt;&#x2F;span&gt;&lt;span&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Nullary
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Unary   &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of precedence * expression
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* associativity is only applicable in the case of binary operations *)
+&lt;&#x2F;span&gt;&lt;span&gt;  | &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;of precedence * associativity * expression * expression
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Mapping our expression language into this form is straightforward:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;structure &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;expression -&amp;gt; operation = function
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Lit &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;_ &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Nullary
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span&gt;(op, lhs, rhs) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;begin match&lt;&#x2F;span&gt;&lt;span&gt; op &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;with
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Add &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(2, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left&lt;&#x2F;span&gt;&lt;span&gt; , lhs, rhs)
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Sub &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(2, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left&lt;&#x2F;span&gt;&lt;span&gt; , lhs, rhs)
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Mul &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(3, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left&lt;&#x2F;span&gt;&lt;span&gt; , lhs, rhs)
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Exp &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(4, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Right&lt;&#x2F;span&gt;&lt;span&gt;, lhs, rhs)
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;_ &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Nullary
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;App &lt;&#x2F;span&gt;&lt;span&gt;(f, x) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(5, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left&lt;&#x2F;span&gt;&lt;span&gt;, f, x)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Abs &lt;&#x2F;span&gt;&lt;span&gt;(_, body) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Unary &lt;&#x2F;span&gt;&lt;span&gt;(1, body)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;These precedence and associativity values could be read from some other source here, if we wanted to share the data with a parser.&lt;&#x2F;p&gt;
+&lt;p&gt;Notice that lambda abstraction is a unary operator, but it doesn&#x27;t have a constant textual representation in the way that the arithmetic operators do. To account for this, we&#x27;ll express the representation of a node as a function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;node_text &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;expression -&amp;gt; string = function
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Lit &lt;&#x2F;span&gt;&lt;span&gt;i -&amp;gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;%d&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; i
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span&gt;(Add, _, _) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot; + &amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span&gt;(Sub, _, _) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot; - &amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span&gt;(Mul, _, _) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot; * &amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Bin &lt;&#x2F;span&gt;&lt;span&gt;(Exp, _, _) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot; ^ &amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Var &lt;&#x2F;span&gt;&lt;span&gt;id -&amp;gt; id
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;App &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;_ &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot; &amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Abs &lt;&#x2F;span&gt;&lt;span&gt;({ name ; value = domain }, _) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;      print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;λ %s : %s . &amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; name (show_ty domain)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;At this point, we&#x27;re ready to write the complete serializer:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;show_expression &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;expression -&amp;gt; string =
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* wrap a string in parentheses when a condition is met *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;wrap &lt;&#x2F;span&gt;&lt;span&gt;(s &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;: string&lt;&#x2F;span&gt;&lt;span&gt;) (condition &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;: bool&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; condition &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;then&lt;&#x2F;span&gt;&lt;span&gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;(%s)&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; s &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;else&lt;&#x2F;span&gt;&lt;span&gt; s &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let rec &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;show &lt;&#x2F;span&gt;&lt;span&gt;(p &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;: precedence&lt;&#x2F;span&gt;&lt;span&gt;) (expr &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;: expression&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;atom &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; node_text expr &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;match&lt;&#x2F;span&gt;&lt;span&gt; structure expr &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;with
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Nullary &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; atom
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Unary &lt;&#x2F;span&gt;&lt;span&gt;(p&amp;#39;, e) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;s &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;%s%s&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; atom (show (p&amp;#39; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;- &lt;&#x2F;span&gt;&lt;span&gt;1) e) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;        wrap s (p&amp;#39; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;lt;=&lt;&#x2F;span&gt;&lt;span&gt; p)
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Binary &lt;&#x2F;span&gt;&lt;span&gt;(p&amp;#39;, assoc, lhs, rhs) -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;(left, right) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= match&lt;&#x2F;span&gt;&lt;span&gt; assoc &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;with
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Left  &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; (p&amp;#39; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;- &lt;&#x2F;span&gt;&lt;span&gt;1, p&amp;#39;)
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Right &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; (p&amp;#39;, p&amp;#39; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;- &lt;&#x2F;span&gt;&lt;span&gt;1) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;s &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; print &lt;&#x2F;span&gt;&lt;span style=&quot;color:#00a33f;&quot;&gt;&amp;quot;%s%s%s&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;(show left lhs) atom (show right rhs) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;        wrap s (p&amp;#39; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;lt;=&lt;&#x2F;span&gt;&lt;span&gt; p) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  show 0
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;For unary and binary operators, the pattern is the same: we compare the precedence of the subterm we&#x27;re looking at (p&#x27;) to the minimum precedence passed down by the parent (p). When p&#x27; isn&#x27;t greater than the minimum, we wrap the subterm in parentheses. When an operator is left or right associative, we subtract one from the minimum precedence to pass down on the left or right, respectively.&lt;&#x2F;p&gt;
+&lt;p&gt;This gives us representations that look like this:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#000000;&quot;&gt;&lt;code&gt;&lt;span&gt;(λ a : Z . λ b : Z . a + b) 1 2 * (λ a : Z . λ b : Z . a - b) 3 4
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;resources&quot;&gt;Resources&lt;&#x2F;h3&gt;
+&lt;ul&gt;
+&lt;li&gt;the source code in this document is available &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;rdck&#x2F;minimal-parenthesization&quot;&gt;here&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;Max Bernstein&#x27;s &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;bernsteinbear.com&#x2F;blog&#x2F;precedence-printing&#x2F;&quot;&gt;implementation&lt;&#x2F;a&gt; that inspired this article&lt;&#x2F;li&gt;
+&lt;li&gt;a &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;softwarefoundations.cis.upenn.edu&#x2F;plf-current&#x2F;Stlc.html&quot;&gt;chapter&lt;&#x2F;a&gt; on the simply typed lambda calculus in &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;softwarefoundations.cis.upenn.edu&#x2F;&quot;&gt;Software Foundations&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Introduction to the OCaml Module System</title>
+        <published>2024-09-10T00:00:00+00:00</published>
+        <updated>2024-09-10T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              River Dillon
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://k-monk.org/blog/ocaml-module-introduction/"/>
+        <id>https://k-monk.org/blog/ocaml-module-introduction/</id>
+        
+        <content type="html" xml:base="https://k-monk.org/blog/ocaml-module-introduction/">&lt;p&gt;I got a request from the OCaml group at the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.recurse.com&#x2F;&quot;&gt;Recurse Center&lt;&#x2F;a&gt; to go over modules and functors this week. Here are the notes I prepared. We&#x27;ll be using Jane Street&#x27;s &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;opensource.janestreet.com&#x2F;core&#x2F;&quot;&gt;Core&lt;&#x2F;a&gt; standard library replacement throughout.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;open &lt;&#x2F;span&gt;&lt;span&gt;Core
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;signatures-as-interfaces&quot;&gt;Signatures as Interfaces&lt;&#x2F;h3&gt;
+&lt;p&gt;A module is a collection of definitions. A signature (alternatively &quot;interface&quot;) is a specification of a module. Signatures are to modules as types are to values -- they are static specifications of behaviour.&lt;&#x2F;p&gt;
+&lt;p&gt;The essence of signatures and modules is information hiding. Signatures allow the programmer to constrain the interface that must be agreed upon by two bodies of code (the module providing the interface and the module consuming the interface). The word &quot;constrain&quot; may sound negative, but this is a good thing! It gives us freedom to modify a module with confidence that our changes will not affect the rest of the program in ways we don&#x27;t intend them to.&lt;&#x2F;p&gt;
+&lt;p&gt;The relationship between modules and signatures is many-to-many: (infinitely) many modules may satisfy a given signature, and many signatures may be satisfied by a given module.&lt;&#x2F;p&gt;
+&lt;p&gt;Suppose we want to write a program that makes use of the mathematical notion of a finite set. We might write the following signature.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module type &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SET &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= sig
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* create a singleton set *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;singleton &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* create the set of all elements in a list *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;of_list &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a list &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* take the union of two sets *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;union &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* take the difference of two sets *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;difference &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* further operations omitted for the sake of brevity *)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The type &lt;code&gt;set&lt;&#x2F;code&gt; is abstract. You can read &lt;code&gt;type &#x27;a set&lt;&#x2F;code&gt; as a claim that &quot;the module will define a type (parametric in one variable) named set&quot;, without actually saying what that type is.&lt;&#x2F;p&gt;
+&lt;p&gt;Here is a possible implementation of our &lt;code&gt;SET&lt;&#x2F;code&gt; interface.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetModule &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= struct
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a set &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a list
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* Yes, polymorphic equality is controversial! We will get to that later. *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;eq &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Stdlib.(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let rec &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;union &lt;&#x2F;span&gt;&lt;span&gt;left &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= function
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;[] &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; left
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;x :: xs -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;List.exists left ~f:(eq x)
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;then&lt;&#x2F;span&gt;&lt;span&gt; union left xs
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;else&lt;&#x2F;span&gt;&lt;span&gt; union (x :: left) xs
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;of_list &lt;&#x2F;span&gt;&lt;span&gt;l &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    union &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;[]&lt;&#x2F;span&gt;&lt;span&gt; l
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;singleton &lt;&#x2F;span&gt;&lt;span&gt;a &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[ a ]
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;difference &lt;&#x2F;span&gt;&lt;span&gt;left right &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;filter &lt;&#x2F;span&gt;&lt;span&gt;a &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= not &lt;&#x2F;span&gt;&lt;span&gt;(List.exists right ~f:(eq a)) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;    List.filter left ~f:filter
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We may refer to names bound in the current module without an explicit qualifier. For example, in the definition of &lt;code&gt;union&lt;&#x2F;code&gt;, we reference &lt;code&gt;eq&lt;&#x2F;code&gt; without a prefix.&lt;&#x2F;p&gt;
+&lt;p&gt;Because we didn&#x27;t specify a signature for &lt;code&gt;SetModule&lt;&#x2F;code&gt;, all top level definitions are exposed by default. If we were to instead give it a signature...&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Set &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SET &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetModule
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;then only those values in the signature will be exposed. In this case, for example, &lt;code&gt;eq&lt;&#x2F;code&gt; would be hidden.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;functors&quot;&gt;Functors&lt;&#x2F;h3&gt;
+&lt;p&gt;OCaml functors are essentially functions between modules, evaluated at compile time.&lt;&#x2F;p&gt;
+&lt;p&gt;As an example, let&#x27;s consider our earlier &lt;code&gt;SET&lt;&#x2F;code&gt; interface. Polymorphic equality is problematic for reasons discussed &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;dev.realworldocaml.org&#x2F;maps-and-hashtables.html&quot;&gt;elsewhere&lt;&#x2F;a&gt;, so let&#x27;s suppose we want to be explicit about our equality test. We could introduce an extra function parameter to &lt;code&gt;union&lt;&#x2F;code&gt; and &lt;code&gt;difference&lt;&#x2F;code&gt; to pass in an equality predicate. That may be a fine solution in some cases, but functors give us a way of specifying the equality predicate at compile time and not having to pass it around.&lt;&#x2F;p&gt;
+&lt;p&gt;We&#x27;ll define a signature of types that have decidable equality:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module type &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;EQUALITY &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= sig
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;eq &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;t &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;t &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;bool
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we can define our set implementation as a functor from &lt;code&gt;EQUALITY&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetFunctor &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= functor &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;E &lt;&#x2F;span&gt;&lt;span&gt;:&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt; EQUALITY&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;struct
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type element &lt;&#x2F;span&gt;&lt;span&gt;= E&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;.t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type set &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;element list
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let rec &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;union &lt;&#x2F;span&gt;&lt;span&gt;left &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= function
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;[] &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; left
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;x :: xs -&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;List.exists left ~f:(E.eq x)
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;then&lt;&#x2F;span&gt;&lt;span&gt; union left xs
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;else&lt;&#x2F;span&gt;&lt;span&gt; union (x :: left) xs
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;of_list &lt;&#x2F;span&gt;&lt;span&gt;l &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    union &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;[]&lt;&#x2F;span&gt;&lt;span&gt; l
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;singleton &lt;&#x2F;span&gt;&lt;span&gt;a &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[ a ]
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;difference &lt;&#x2F;span&gt;&lt;span&gt;left right &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;filter &lt;&#x2F;span&gt;&lt;span&gt;a &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= not &lt;&#x2F;span&gt;&lt;span&gt;(List.exists right ~f:(E.eq a)) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;in
+&lt;&#x2F;span&gt;&lt;span&gt;    List.filter left ~f:filter
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now, to instantiate &lt;code&gt;SetFunctor&lt;&#x2F;code&gt;, we&#x27;ll first have to define an input module.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;IntEquality &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;EQUALITY &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= struct
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type t &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;int
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;eq &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Int.equal
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Applying the functor looks like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;IntSet &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetFunctor&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;IntEquality&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is a rare case in OCaml where the syntax for application requires parentheses. We can give the functor an explicit signature, if we want:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module type &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SET_FUNCTOR &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= functor &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;E &lt;&#x2F;span&gt;&lt;span&gt;:&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt; EQUALITY&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;sig
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type element &lt;&#x2F;span&gt;&lt;span&gt;= E&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;.t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* create a singleton set *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;singleton &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;element &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* create the set of all elements in a list *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;of_list &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;element list &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* take the union of two sets *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;union &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* take the difference of two sets *)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;difference &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;set
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* further operations omitted for the sake of brevity *)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetFunctor&amp;#39; &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SET_FUNCTOR &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;SetFunctor
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The type declaration &lt;code&gt;type element = E.t&lt;&#x2F;code&gt; requires that a module implementing this signature will define a type &lt;code&gt;element&lt;&#x2F;code&gt; that is equal to &lt;code&gt;E.t&lt;&#x2F;code&gt; from its input module.&lt;&#x2F;p&gt;
+&lt;p&gt;Notice that &lt;code&gt;set&lt;&#x2F;code&gt; is no longer parametric. The set type we get when we apply the functor represents a set of elements specifically of type &lt;code&gt;E.t&lt;&#x2F;code&gt;. We&#x27;ve essentially lifted the parameter to the level of the module system.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;type-classes-as-signatures&quot;&gt;Type Classes as Signatures&lt;&#x2F;h3&gt;
+&lt;p&gt;Haskell&#x27;s type classes may be viewed as a particular kind of signature. For example, the Functor and Applicative classes are described by the following signatures:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;OCaml&quot; style=&quot;background-color:#ffffff;color:#000000;&quot; class=&quot;language-OCaml &quot;&gt;&lt;code class=&quot;language-OCaml&quot; data-lang=&quot;OCaml&quot;&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module type &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;FUNCTOR &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= sig
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;map &lt;&#x2F;span&gt;&lt;span&gt;: (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;b&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a t &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;b t
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* an example instance *)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;OptionFunctor &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;FUNCTOR &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= struct
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a t &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a option
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;map &lt;&#x2F;span&gt;&lt;span&gt;f xs &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Option.map xs ~f:f
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module type &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;APPLICATIVE &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= sig
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;pure &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a t
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;apply &lt;&#x2F;span&gt;&lt;span&gt;: (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;b&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;t &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a t &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;b t
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#919191;&quot;&gt;(* an example instance *)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;module &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;OptionApplicative &lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;APPLICATIVE &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= struct
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;type &amp;#39;a t &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;&amp;#39;a option
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;pure &lt;&#x2F;span&gt;&lt;span&gt;a &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Some&lt;&#x2F;span&gt;&lt;span&gt; a
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;apply &lt;&#x2F;span&gt;&lt;span&gt;fs xs &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;= match &lt;&#x2F;span&gt;&lt;span&gt;(fs, xs) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;with
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;(Some f, Some x) -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;Some &lt;&#x2F;span&gt;&lt;span&gt;(f x)
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a535ae;&quot;&gt;_ &lt;&#x2F;span&gt;&lt;span&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#21439c;&quot;&gt;None
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#ff5600;&quot;&gt;end
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It is conventional in OCaml to name the principal type of a module&#x2F;signature &lt;code&gt;t&lt;&#x2F;code&gt;, if one exists.&lt;&#x2F;p&gt;
+&lt;p&gt;In fact, OCaml modules are strictly more powerful than Haskell type classes. Type classes are limited to having at most one instance per type, while signatures may be inhabited by several modules that package a given type. (For example, Haskell is forced to ordain one ordering of the natural numbers as the canonical &lt;code&gt;Ord&lt;&#x2F;code&gt; instance, even though there are many possible orderings.) The cost is in verbosity -- we have to name which instance of a signature we&#x27;re talking about. There is research being done on &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~rwh&#x2F;papers&#x2F;mtc&#x2F;short.pdf&quot;&gt;modular type classes&lt;&#x2F;a&gt;, which are intended to combine the best of both worlds.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;resources&quot;&gt;Resources&lt;&#x2F;h3&gt;
+&lt;p&gt;The source code in this document is available &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;rdck&#x2F;ocaml-module-introduction&quot;&gt;here&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Yaron Minsky and Anil Madhavapeddy have written an excellent &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;dev.realworldocaml.org&#x2F;index.html&quot;&gt;book&lt;&#x2F;a&gt; on OCaml, which includes sections on &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;dev.realworldocaml.org&#x2F;files-modules-and-programs.html&quot;&gt;modules&lt;&#x2F;a&gt; and &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;dev.realworldocaml.org&#x2F;functors.html&quot;&gt;functors&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Robert Harper, one of the designers of Standard ML, has written about the importance of modularity on &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;existentialtype.wordpress.com&#x2F;2011&#x2F;04&#x2F;16&#x2F;modules-matter-most&#x2F;&quot;&gt;his blog&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

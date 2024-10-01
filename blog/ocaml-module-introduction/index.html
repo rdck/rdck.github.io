@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="utf-8">
+
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://k-monk.org/blog/ocaml-module-introduction/">
+  <meta property="og:site_name" content="River Dillon">
+  <meta property="og:image" content="https://k-monk.org/profile.jpg">
+  <meta property="og:image:secure_url" content="https://k-monk.org/profile.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="400">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@k__monk">
+  <meta name="twitter:creator" content="@k__monk">
+  <meta name="twitter:image" content="https://k-monk.org/profile.jpg">
+
+  
+  <meta name="twitter:title" content="Introduction to the OCaml Module System">
+  <meta name="twitter:description" content="I got a request from the OCaml group at the Recurse Center to go over modules and functors this week. Here are the notes I prepared.">
+  <meta property="og:title" content="Introduction to the OCaml Module System">
+  <meta property="og:description" content="I got a request from the OCaml group at the Recurse Center to go over modules and functors this week. Here are the notes I prepared.">
+
+
+  <title>Introduction to the OCaml Module System</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+
+  <style>
+
+:root { font-family: 'Inter', sans-serif; }
+@supports (font-variation-settings: normal) {
+  :root { font-family: 'Inter var', sans-serif; }
+}
+
+body {
+
+  background-color: WhiteSmoke;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+
+  code {
+    font-size: small;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: max-content auto;
+  }
+
+  dt {
+    grid-column-start: 1;
+  }
+
+  dd {
+    grid-column-start: 2;
+  }
+
+  dt.post-date {
+    font-family: monospace;
+  }
+
+  ul.navbar {
+    display: flex;
+    list-style: none;
+    padding-left: 0px;
+  }
+
+  li.nav {
+    padding-right: 20px;
+  }
+
+  header.nav-header {
+    background-color: lavender;
+  }
+
+}
+
+  </style>
+
+</head>
+
+<body>
+
+  <header class="nav-header">
+    <ul class="navbar">
+      <li class="nav"><a href="/">HOME</a></li>
+      <li class="nav"><a href="/blog">BLOG</a></li>
+      <li class="nav"><a href="/atom.xml">ATOM</a></li>
+    </ul>
+  </header>
+
+  <section class="section">
+
+    <div class="container">
+      
+<h1 class="title">Introduction to the OCaml Module System</h1>
+<p class="subtitle"><strong>2024-09-10</strong></p>
+<p>I got a request from the OCaml group at the <a rel="noopener" target="_blank" href="https://www.recurse.com/">Recurse Center</a> to go over modules and functors this week. Here are the notes I prepared. We'll be using Jane Street's <a rel="noopener" target="_blank" href="https://opensource.janestreet.com/core/">Core</a> standard library replacement throughout.</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">open </span><span>Core
+</span></code></pre>
+<h3 id="signatures-as-interfaces">Signatures as Interfaces</h3>
+<p>A module is a collection of definitions. A signature (alternatively "interface") is a specification of a module. Signatures are to modules as types are to values -- they are static specifications of behaviour.</p>
+<p>The essence of signatures and modules is information hiding. Signatures allow the programmer to constrain the interface that must be agreed upon by two bodies of code (the module providing the interface and the module consuming the interface). The word "constrain" may sound negative, but this is a good thing! It gives us freedom to modify a module with confidence that our changes will not affect the rest of the program in ways we don't intend them to.</p>
+<p>The relationship between modules and signatures is many-to-many: (infinitely) many modules may satisfy a given signature, and many signatures may be satisfied by a given module.</p>
+<p>Suppose we want to write a program that makes use of the mathematical notion of a finite set. We might write the following signature.</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module type </span><span style="color:#21439c;">SET </span><span style="color:#ff5600;">= sig
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">type &#39;a set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* create a singleton set *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">singleton </span><span>: </span><span style="color:#ff5600;">&#39;a </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* create the set of all elements in a list *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">of_list </span><span>: </span><span style="color:#ff5600;">&#39;a list </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* take the union of two sets *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">union </span><span>: </span><span style="color:#ff5600;">&#39;a set </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* take the difference of two sets *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">difference </span><span>: </span><span style="color:#ff5600;">&#39;a set </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* further operations omitted for the sake of brevity *)
+</span><span>
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>The type <code>set</code> is abstract. You can read <code>type 'a set</code> as a claim that "the module will define a type (parametric in one variable) named set", without actually saying what that type is.</p>
+<p>Here is a possible implementation of our <code>SET</code> interface.</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module </span><span style="color:#21439c;">SetModule </span><span style="color:#ff5600;">= struct
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">type &#39;a set </span><span>= </span><span style="color:#ff5600;">&#39;a list
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* Yes, polymorphic equality is controversial! We will get to that later. *)
+</span><span>  </span><span style="color:#ff5600;">let </span><span>eq </span><span style="color:#ff5600;">= </span><span>Stdlib.(</span><span style="color:#ff5600;">=</span><span>)
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let rec </span><span style="color:#21439c;">union </span><span>left </span><span style="color:#ff5600;">= function
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#a535ae;">[] </span><span>-&gt; left
+</span><span>    </span><span style="color:#ff5600;">| </span><span>x :: xs -&gt;
+</span><span>        </span><span style="color:#ff5600;">if </span><span>List.exists left ~f:(eq x)
+</span><span>        </span><span style="color:#ff5600;">then</span><span> union left xs
+</span><span>        </span><span style="color:#ff5600;">else</span><span> union (x :: left) xs
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">of_list </span><span>l </span><span style="color:#ff5600;">=
+</span><span>    union </span><span style="color:#a535ae;">[]</span><span> l
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">singleton </span><span>a </span><span style="color:#ff5600;">= </span><span>[ a ]
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">difference </span><span>left right </span><span style="color:#ff5600;">=
+</span><span>    </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">filter </span><span>a </span><span style="color:#ff5600;">= not </span><span>(List.exists right ~f:(eq a)) </span><span style="color:#ff5600;">in
+</span><span>    List.filter left ~f:filter
+</span><span>
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>We may refer to names bound in the current module without an explicit qualifier. For example, in the definition of <code>union</code>, we reference <code>eq</code> without a prefix.</p>
+<p>Because we didn't specify a signature for <code>SetModule</code>, all top level definitions are exposed by default. If we were to instead give it a signature...</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module </span><span style="color:#21439c;">Set </span><span>: </span><span style="color:#21439c;">SET </span><span style="color:#ff5600;">= </span><span style="color:#21439c;">SetModule
+</span></code></pre>
+<p>then only those values in the signature will be exposed. In this case, for example, <code>eq</code> would be hidden.</p>
+<h3 id="functors">Functors</h3>
+<p>OCaml functors are essentially functions between modules, evaluated at compile time.</p>
+<p>As an example, let's consider our earlier <code>SET</code> interface. Polymorphic equality is problematic for reasons discussed <a rel="noopener" target="_blank" href="https://dev.realworldocaml.org/maps-and-hashtables.html">elsewhere</a>, so let's suppose we want to be explicit about our equality test. We could introduce an extra function parameter to <code>union</code> and <code>difference</code> to pass in an equality predicate. That may be a fine solution in some cases, but functors give us a way of specifying the equality predicate at compile time and not having to pass it around.</p>
+<p>We'll define a signature of types that have decidable equality:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module type </span><span style="color:#21439c;">EQUALITY </span><span style="color:#ff5600;">= sig
+</span><span>  </span><span style="color:#ff5600;">type t
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">eq </span><span>: </span><span style="color:#ff5600;">t </span><span>-&gt; </span><span style="color:#ff5600;">t </span><span>-&gt; </span><span style="color:#ff5600;">bool
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>Then we can define our set implementation as a functor from <code>EQUALITY</code>.</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module </span><span style="color:#21439c;">SetFunctor </span><span style="color:#ff5600;">= functor </span><span>(</span><span style="color:#21439c;">E </span><span>:</span><span style="color:#ff5600;"> EQUALITY</span><span>) -&gt; </span><span style="color:#ff5600;">struct
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">type element </span><span>= E</span><span style="color:#ff5600;">.t
+</span><span>  </span><span style="color:#ff5600;">type set </span><span>= </span><span style="color:#ff5600;">element list
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let rec </span><span style="color:#21439c;">union </span><span>left </span><span style="color:#ff5600;">= function
+</span><span>    </span><span style="color:#ff5600;">| </span><span style="color:#a535ae;">[] </span><span>-&gt; left
+</span><span>    </span><span style="color:#ff5600;">| </span><span>x :: xs -&gt;
+</span><span>        </span><span style="color:#ff5600;">if </span><span>List.exists left ~f:(E.eq x)
+</span><span>        </span><span style="color:#ff5600;">then</span><span> union left xs
+</span><span>        </span><span style="color:#ff5600;">else</span><span> union (x :: left) xs
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">of_list </span><span>l </span><span style="color:#ff5600;">=
+</span><span>    union </span><span style="color:#a535ae;">[]</span><span> l
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">singleton </span><span>a </span><span style="color:#ff5600;">= </span><span>[ a ]
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">difference </span><span>left right </span><span style="color:#ff5600;">=
+</span><span>    </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">filter </span><span>a </span><span style="color:#ff5600;">= not </span><span>(List.exists right ~f:(E.eq a)) </span><span style="color:#ff5600;">in
+</span><span>    List.filter left ~f:filter
+</span><span>
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>Now, to instantiate <code>SetFunctor</code>, we'll first have to define an input module.</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module </span><span style="color:#21439c;">IntEquality </span><span>: </span><span style="color:#21439c;">EQUALITY </span><span style="color:#ff5600;">= struct
+</span><span>  </span><span style="color:#ff5600;">type t </span><span>= </span><span style="color:#ff5600;">int
+</span><span>  </span><span style="color:#ff5600;">let </span><span>eq </span><span style="color:#ff5600;">= </span><span>Int.equal
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>Applying the functor looks like this:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module </span><span style="color:#21439c;">IntSet </span><span style="color:#ff5600;">= </span><span style="color:#21439c;">SetFunctor</span><span>(</span><span style="color:#21439c;">IntEquality</span><span>)
+</span></code></pre>
+<p>This is a rare case in OCaml where the syntax for application requires parentheses. We can give the functor an explicit signature, if we want:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module type </span><span style="color:#21439c;">SET_FUNCTOR </span><span style="color:#ff5600;">= functor </span><span>(</span><span style="color:#21439c;">E </span><span>:</span><span style="color:#ff5600;"> EQUALITY</span><span>) -&gt; </span><span style="color:#ff5600;">sig
+</span><span>
+</span><span>  </span><span style="color:#ff5600;">type element </span><span>= E</span><span style="color:#ff5600;">.t
+</span><span>  </span><span style="color:#ff5600;">type set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* create a singleton set *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">singleton </span><span>: </span><span style="color:#ff5600;">element </span><span>-&gt; </span><span style="color:#ff5600;">set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* create the set of all elements in a list *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">of_list </span><span>: </span><span style="color:#ff5600;">element list </span><span>-&gt; </span><span style="color:#ff5600;">set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* take the union of two sets *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">union </span><span>: </span><span style="color:#ff5600;">set </span><span>-&gt; </span><span style="color:#ff5600;">set </span><span>-&gt; </span><span style="color:#ff5600;">set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* take the difference of two sets *)
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">difference </span><span>: </span><span style="color:#ff5600;">set </span><span>-&gt; </span><span style="color:#ff5600;">set </span><span>-&gt; </span><span style="color:#ff5600;">set
+</span><span>
+</span><span>  </span><span style="color:#919191;">(* further operations omitted for the sake of brevity *)
+</span><span>
+</span><span style="color:#ff5600;">end
+</span><span>
+</span><span style="color:#ff5600;">module </span><span style="color:#21439c;">SetFunctor&#39; </span><span>: </span><span style="color:#21439c;">SET_FUNCTOR </span><span style="color:#ff5600;">= </span><span style="color:#21439c;">SetFunctor
+</span></code></pre>
+<p>The type declaration <code>type element = E.t</code> requires that a module implementing this signature will define a type <code>element</code> that is equal to <code>E.t</code> from its input module.</p>
+<p>Notice that <code>set</code> is no longer parametric. The set type we get when we apply the functor represents a set of elements specifically of type <code>E.t</code>. We've essentially lifted the parameter to the level of the module system.</p>
+<h3 id="type-classes-as-signatures">Type Classes as Signatures</h3>
+<p>Haskell's type classes may be viewed as a particular kind of signature. For example, the Functor and Applicative classes are described by the following signatures:</p>
+<pre data-lang="OCaml" style="background-color:#ffffff;color:#000000;" class="language-OCaml "><code class="language-OCaml" data-lang="OCaml"><span style="color:#ff5600;">module type </span><span style="color:#21439c;">FUNCTOR </span><span style="color:#ff5600;">= sig
+</span><span>  </span><span style="color:#ff5600;">type &#39;a t
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">map </span><span>: (</span><span style="color:#ff5600;">&#39;a </span><span>-&gt; </span><span style="color:#ff5600;">&#39;b</span><span>) -&gt; </span><span style="color:#ff5600;">&#39;a t </span><span>-&gt; </span><span style="color:#ff5600;">&#39;b t
+</span><span style="color:#ff5600;">end
+</span><span>
+</span><span style="color:#919191;">(* an example instance *)
+</span><span style="color:#ff5600;">module </span><span style="color:#21439c;">OptionFunctor </span><span>: </span><span style="color:#21439c;">FUNCTOR </span><span style="color:#ff5600;">= struct
+</span><span>  </span><span style="color:#ff5600;">type &#39;a t </span><span>= </span><span style="color:#ff5600;">&#39;a option
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">map </span><span>f xs </span><span style="color:#ff5600;">= </span><span>Option.map xs ~f:f
+</span><span style="color:#ff5600;">end
+</span><span>
+</span><span style="color:#ff5600;">module type </span><span style="color:#21439c;">APPLICATIVE </span><span style="color:#ff5600;">= sig
+</span><span>  </span><span style="color:#ff5600;">type &#39;a t
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">pure </span><span>: </span><span style="color:#ff5600;">&#39;a </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a t
+</span><span>  </span><span style="color:#ff5600;">val </span><span style="color:#21439c;">apply </span><span>: (</span><span style="color:#ff5600;">&#39;a </span><span>-&gt; </span><span style="color:#ff5600;">&#39;b</span><span>) </span><span style="color:#ff5600;">t </span><span>-&gt; </span><span style="color:#ff5600;">&#39;a t </span><span>-&gt; </span><span style="color:#ff5600;">&#39;b t
+</span><span style="color:#ff5600;">end
+</span><span>
+</span><span style="color:#919191;">(* an example instance *)
+</span><span style="color:#ff5600;">module </span><span style="color:#21439c;">OptionApplicative </span><span>: </span><span style="color:#21439c;">APPLICATIVE </span><span style="color:#ff5600;">= struct
+</span><span>  </span><span style="color:#ff5600;">type &#39;a t </span><span>= </span><span style="color:#ff5600;">&#39;a option
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">pure </span><span>a </span><span style="color:#ff5600;">= </span><span style="color:#21439c;">Some</span><span> a
+</span><span>  </span><span style="color:#ff5600;">let </span><span style="color:#21439c;">apply </span><span>fs xs </span><span style="color:#ff5600;">= match </span><span>(fs, xs) </span><span style="color:#ff5600;">with
+</span><span>  </span><span style="color:#ff5600;">| </span><span>(Some f, Some x) -&gt; </span><span style="color:#21439c;">Some </span><span>(f x)
+</span><span>  </span><span style="color:#ff5600;">| </span><span style="color:#a535ae;">_ </span><span>-&gt; </span><span style="color:#21439c;">None
+</span><span style="color:#ff5600;">end
+</span></code></pre>
+<p>It is conventional in OCaml to name the principal type of a module/signature <code>t</code>, if one exists.</p>
+<p>In fact, OCaml modules are strictly more powerful than Haskell type classes. Type classes are limited to having at most one instance per type, while signatures may be inhabited by several modules that package a given type. (For example, Haskell is forced to ordain one ordering of the natural numbers as the canonical <code>Ord</code> instance, even though there are many possible orderings.) The cost is in verbosity -- we have to name which instance of a signature we're talking about. There is research being done on <a rel="noopener" target="_blank" href="https://www.cs.cmu.edu/~rwh/papers/mtc/short.pdf">modular type classes</a>, which are intended to combine the best of both worlds.</p>
+<h3 id="resources">Resources</h3>
+<p>The source code in this document is available <a rel="noopener" target="_blank" href="https://github.com/rdck/ocaml-module-introduction">here</a>.</p>
+<p>Yaron Minsky and Anil Madhavapeddy have written an excellent <a rel="noopener" target="_blank" href="https://dev.realworldocaml.org/index.html">book</a> on OCaml, which includes sections on <a rel="noopener" target="_blank" href="https://dev.realworldocaml.org/files-modules-and-programs.html">modules</a> and <a rel="noopener" target="_blank" href="https://dev.realworldocaml.org/functors.html">functors</a>.</p>
+<p>Robert Harper, one of the designers of Standard ML, has written about the importance of modularity on <a rel="noopener" target="_blank" href="https://existentialtype.wordpress.com/2011/04/16/modules-matter-most/">his blog</a>.</p>
+
+
+    </div>
+
+    <div>
+      <br><br><br>
+    </div>
+
+    <div style="text-align:center">
+      <a href='https://webring.recurse.com'><img src='https://webring.recurse.com/icon.png' height=40px></a>
+      <br>
+      <a href='https://webring.recurse.com'>recurse center webring</a>
+    </div>
+
+  </section>
+</body>
+
+</html>
