@@ -1,0 +1,150 @@
+<html><head><title>Introduction to the OCaml Module System</title><meta charset="UTF-8"><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="alternate" type="application/rss+xml" title="River Dillon" href="/feed.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inria%20Sans&amp;amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass%20Mono&amp;amp;display=swap"><script defer="" src="https://cloud.umami.is/script.js" data-website-id="f2da3301-a904-4d93-955c-2563c929103a"></script></head><body><header><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></header><h1>Introduction to the OCaml Module System</h1><h3>2024-09-10</h3><p>I got a request from the OCaml group at the <a href="https://www.recurse.com/">Recurse Center</a> to go over modules and functors this week. Here are the notes I prepared. We'll be using Jane Street's <a href="https://opensource.janestreet.com/core/">Core</a> standard library replacement throughout.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Core</span></code></pre></div>
+<h2 id="signatures-as-interfaces"><a href="#signatures-as-interfaces">Signatures as Interfaces</a></h2>
+<p>A module is a collection of definitions. A signature (alternatively "interface") is a specification of a module. Signatures are to modules as types are to values -- they are static specifications of behaviour.</p>
+<p>The essence of signatures and modules is information hiding. Signatures allow the programmer to constrain the interface that must be agreed upon by two bodies of code (the module providing the interface and the module consuming the interface). The word "constrain" may sound negative, but this is a good thing! It gives us freedom to modify a module with confidence that our changes will not affect the rest of the program in ways we don't intend them to.</p>
+<p>The relationship between modules and signatures is many-to-many: (infinitely) many modules may satisfy a given signature, and many signatures may be satisfied by a given module.</p>
+<p>Suppose we want to write a program that makes use of the mathematical notion of a finite set. We might write the following signature.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="kw">type</span> SET = <span class="kw">sig</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a set</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* create a singleton set *)</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> singleton : &#39;a -&gt; &#39;a set</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* create the set of all elements in a list *)</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> of_list : &#39;a <span class="dt">list</span> -&gt; &#39;a set</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* take the union of two sets *)</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> union : &#39;a set -&gt; &#39;a set -&gt; &#39;a set</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* take the difference of two sets *)</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> difference : &#39;a set -&gt; &#39;a set -&gt; &#39;a set</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* further operations omitted for the sake of brevity *)</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>The type <code>set</code> is abstract. You can read <code>type 'a set</code> as a claim that "the module will define a type (parametric in one variable) named set", without actually saying what that type is.</p>
+<p>Here is a possible implementation of our <code>SET</code> interface.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> SetModule = <span class="kw">struct</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a set = &#39;a <span class="dt">list</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* Yes, polymorphic equality is controversial! We will get to that later. *)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> eq = Stdlib.(=)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="kw">rec</span> union left = <span class="kw">function</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    | [] -&gt; left</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    | x :: xs -&gt;</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="dt">List</span>.exists left ~f:(eq x)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">then</span> union left xs</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">else</span> union (x :: left) xs</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> of_list l =</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    union [] l</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> singleton a = [ a ]</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> difference left right =</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> filter a = <span class="dt">not</span> (<span class="dt">List</span>.exists right ~f:(eq a)) <span class="kw">in</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="dt">List</span>.filter left ~f:filter</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>We may refer to names bound in the current module without an explicit qualifier. For example, in the definition of <code>union</code>, we reference <code>eq</code> without a prefix.</p>
+<p>Because we didn't specify a signature for <code>SetModule</code>, all top level definitions are exposed by default. If we were to instead give it a signature...</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Set</span> : SET = SetModule</span></code></pre></div>
+<p>then only those values in the signature will be exposed. In this case, for example, <code>eq</code> would be hidden.</p>
+<h2 id="functors"><a href="#functors">Functors</a></h2>
+<p>OCaml functors are essentially functions between modules, evaluated at compile time.</p>
+<p>As an example, let's consider our earlier <code>SET</code> interface. Polymorphic equality is problematic for reasons discussed <a href="https://dev.realworldocaml.org/maps-and-hashtables.html">elsewhere</a>, so let's suppose we want to be explicit about our equality test. We could introduce an extra function parameter to <code>union</code> and <code>difference</code> to pass in an equality predicate. That may be a fine solution in some cases, but functors give us a way of specifying the equality predicate at compile time and not having to pass it around.</p>
+<p>We'll define a signature of types that have decidable equality:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="kw">type</span> EQUALITY = <span class="kw">sig</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> t</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> eq : t -&gt; t -&gt; <span class="dt">bool</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>Then we can define our set implementation as a functor from <code>EQUALITY</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> SetFunctor = <span class="kw">functor</span> (E : EQUALITY) -&gt; <span class="kw">struct</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> element = E.t</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> set = element <span class="dt">list</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="kw">rec</span> union left = <span class="kw">function</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    | [] -&gt; left</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    | x :: xs -&gt;</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="dt">List</span>.exists left ~f:(E.eq x)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">then</span> union left xs</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="kw">else</span> union (x :: left) xs</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> of_list l =</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    union [] l</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> singleton a = [ a ]</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> difference left right =</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> filter a = <span class="dt">not</span> (<span class="dt">List</span>.exists right ~f:(E.eq a)) <span class="kw">in</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">List</span>.filter left ~f:filter</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>Now, to instantiate <code>SetFunctor</code>, we'll first have to define an input module.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> IntEquality : EQUALITY = <span class="kw">struct</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> t = <span class="dt">int</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> eq = <span class="dt">Int</span>.equal</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>Applying the functor looks like this:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> IntSet = SetFunctor(IntEquality)</span></code></pre></div>
+<p>This is a rare case in OCaml where the syntax for application requires parentheses. We can give the functor an explicit signature, if we want:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="kw">type</span> SET_FUNCTOR = <span class="kw">functor</span> (E : EQUALITY) -&gt; <span class="kw">sig</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> element = E.t</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> set</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* create a singleton set *)</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> singleton : element -&gt; set</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* create the set of all elements in a list *)</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> of_list : element <span class="dt">list</span> -&gt; set</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* take the union of two sets *)</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> union : set -&gt; set -&gt; set</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* take the difference of two sets *)</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> difference : set -&gt; set -&gt; set</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* further operations omitted for the sake of brevity *)</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> SetFunctor&#39; : SET_FUNCTOR = SetFunctor</span></code></pre></div>
+<p>The type declaration <code>type element = E.t</code> requires that a module implementing this signature will define a type <code>element</code> that is equal to <code>E.t</code> from its input module.</p>
+<p>Notice that <code>set</code> is no longer parametric. The set type we get when we apply the functor represents a set of elements specifically of type <code>E.t</code>. We've essentially lifted the parameter to the level of the module system.</p>
+<h2 id="type-classes-as-signatures"><a href="#type-classes-as-signatures">Type Classes as Signatures</a></h2>
+<p>Haskell's type classes may be viewed as a particular kind of signature. For example, the Functor and Applicative classes are described by the following signatures:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="kw">type</span> FUNCTOR = <span class="kw">sig</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a t</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> map : (&#39;a -&gt; &#39;b) -&gt; &#39;a t -&gt; &#39;b t</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co">(* an example instance *)</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> OptionFunctor : FUNCTOR = <span class="kw">struct</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a t = &#39;a <span class="dt">option</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> map f xs = <span class="dt">Option</span>.map xs ~f:f</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="kw">type</span> APPLICATIVE = <span class="kw">sig</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a t</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> pure : &#39;a -&gt; &#39;a t</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>  <span class="kw">val</span> apply : (&#39;a -&gt; &#39;b) t -&gt; &#39;a t -&gt; &#39;b t</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">(* an example instance *)</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> OptionApplicative : APPLICATIVE = <span class="kw">struct</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> &#39;a t = &#39;a <span class="dt">option</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> pure a = <span class="dt">Some</span> a</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> apply fs xs = <span class="kw">match</span> (fs, xs) <span class="kw">with</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>  | (<span class="dt">Some</span> f, <span class="dt">Some</span> x) -&gt; <span class="dt">Some</span> (f x)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>  | _ -&gt; <span class="dt">None</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>It is conventional in OCaml to name the principal type of a module/signature <code>t</code>, if one exists.</p>
+<p>In fact, OCaml modules are strictly more powerful than Haskell type classes. Type classes are limited to having at most one instance per type, while signatures may be inhabited by several modules that package a given type. (For example, Haskell is forced to ordain one ordering of the natural numbers as the canonical <code>Ord</code> instance, even though there are many possible orderings.) The cost is in verbosity -- we have to name which instance of a signature we're talking about. There is research being done on <a href="https://www.cs.cmu.edu/~rwh/papers/mtc/short.pdf">modular type classes</a>, which are intended to combine the best of both worlds.</p>
+<h2 id="resources"><a href="#resources">Resources</a></h2>
+<p>The source code in this document is available <a href="https://github.com/rdck/ocaml-module-introduction">here</a>. Yaron Minsky and Anil Madhavapeddy have written an excellent <a href="https://dev.realworldocaml.org/index.html">book</a> on OCaml, which includes sections on <a href="https://dev.realworldocaml.org/files-modules-and-programs.html">modules</a> and <a href="https://dev.realworldocaml.org/functors.html">functors</a>. Robert Harper, one of the designers of Standard ML, has written about the importance of modularity on <a href="https://existentialtype.wordpress.com/2011/04/16/modules-matter-most/">his blog</a>.</p><footer><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></footer></body></html>

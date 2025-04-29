@@ -1,0 +1,31 @@
+<html><head><title>[New Game] Those Who Wear Red</title><meta charset="UTF-8"><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="alternate" type="application/rss+xml" title="River Dillon" href="/feed.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inria%20Sans&amp;amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass%20Mono&amp;amp;display=swap"><script defer="" src="https://cloud.umami.is/script.js" data-website-id="f2da3301-a904-4d93-955c-2563c929103a"></script></head><body><header><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></header><h1>[New Game] Those Who Wear Red</h1><h3>2026-07-19</h3><hr />
+<p>I made a little puzzle game. Give it a play and let me know what you think:</p>
+<p><a href="https://k-monk.org/project/those-who-wear-red/" class="uri">https://k-monk.org/project/those-who-wear-red/</a></p>
+<hr />
+<p><a href="https://www.puzzlescript.net/">PuzzleScript</a> is a lovely little piece of software. It's a compiler for puzzle games written as systems of rewrite rules. Despite my affection for it, I'd never managed to actually use it to make a decent game. When I was at the <a href="https://www.recurse.com/scout/click?t=587bce02bd058cc0b4b7d47daeb8e550">Recurse Center</a> in 2024, I'd tried to make a few prototypes, but none of them felt worth publishing.</p>
+<p>A few weeks ago I told my friend <a href="https://cheng.organic/">May</a> about PuzzleScript, and she immediately sat down and made an interesting prototype. Not to be outdone, I felt compelled to try again.</p>
+<p>I wanted to play with the idea of avoidance. Guards who follow you in some pattern was an obvious place to start. Once I combined that with the typical sokoban box-pushing, lots of ideas sort of fell out naturally. Before I really knew what happened, I had 10 or 15 levels exploring the consequences of that combination. Then I had the idea introduced on level 20, and that felt like enough material for a small game. It could have been bigger; there's certainly more juice to squeeze. I'm fairly happy with the length, though, and I'm not sure the rules are quite interesting enough to warrant further exploration. I think it's about the right length for someone who hasn't played a huge amount of sokoban before to play in one or two sittings.</p>
+<p><img src="preview.png" alt="image" /></p>
+<h2 id="music"><a href="#music">Music</a></h2>
+<p>I composed the music in <a href="https://clavier36.com/about">CLAVIER-36</a> (an audio programming environment I've been working on for a while). Here's a lossless <a href="music.flac">bounce</a>.</p>
+<h2 id="design-notes"><a href="#design-notes">Design Notes</a></h2>
+<hr />
+<p>SPOILERS! PLAY THE GAME BEFORE READING FURTHER!</p>
+<hr />
+<p>At first, I wrote the guard movement rules in such a way that they would respond to the player's starting position, instead of the player's ending position. Flipping that around was important.</p>
+<p>I learned some things from watching friends play. There are always more alternate solutions than you think. I was repeatedly surprised to see people find solutions I hadn't intended. There's huge variance in what people find difficult. If you design each puzzle to each express an idea, then getting stuck is fairly binary; either the player sees the idea, or they don't. Something that one person sees instantly, another might stare at for ages without insight. None of this is terribly shocking; I'm just appreciating it in a way I hadn't as a player.</p>
+<p>In general, I tried to cut each level to only the necessary components. If followed blindly, though, this principle might lead you to constrain the space so tightly that only the solution remains (for example, by filling every unused cell with a wall). At some point, I noticed myself leaning a little too far in this direction, and had to ease up on this instinct. Some degree of giving the player space to make mistakes is needed.</p>
+<p>Some remarks on specific levels:</p>
+<ul>
+<li>[10] An example where only one sequence of actions (the solution) is possible without immediate death, but it's used pedagogically. I think this is okay if used sparingly.</li>
+<li>[13] The yellow targets are sort of a red herring; you'll find the solution if you ignore them. How do I feel about red herrings? I'm not completely sure.</li>
+<li>[17] The presence of the guard is essentially a turn limit, which really adds no additional interest. I included this level mostly to teach that the player can safely cross red targets.</li>
+<li>[18] Feels a bit too unconstrained to me. I couldn't figure out a way of fixing it that I liked, though.</li>
+<li>[19] Arguably unnecessarily big. The same idea could have been shown with fewer guards. Some people found the scale exciting, though.</li>
+<li>[20] This is where I think things pick up. I sort of see everything up until here as a digestible introduction, so that we can get to the interesting stuff. If I thought the ruleset deserved it, there would have been more exploration starting from here.</li>
+<li>[23] By far the most common place to get stuck. I'm not sure exactly what about this level makes it more difficult than the rest.</li>
+<li>[26] The idea here could have been made a bit less obvious... Maybe that would have been better.</li>
+<li>[27] Probably the level I'm happiest with. Requires a nice sequence of inference.</li>
+</ul>
+<h2 id="credits"><a href="#credits">Credits</a></h2>
+<p>Thanks to Nick la Rooy, Roujia Wen, and to various people from the London <a href="https://london.permacomputing.net/posts/index.html">permacomputing group</a> for help playtesting.</p><footer><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></footer></body></html>

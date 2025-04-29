@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="588"
+   height="294"
+   viewBox="0 0 588 294"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <marker
+       style="overflow:visible"
+       id="marker2"
+       refX="0"
+       refY="0"
+       orient="auto"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:none;stroke:context-stroke;stroke-width:1"
+         d="M 0,4 V -4"
+         id="path2" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Stop"
+       refX="0"
+       refY="0"
+       orient="auto"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:none;stroke:context-stroke;stroke-width:1"
+         d="M 0,4 V -4"
+         id="path23" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Stop-9"
+       refX="0"
+       refY="0"
+       orient="auto"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:none;stroke:context-stroke;stroke-width:1"
+         d="M 0,4 V -4"
+         id="path23-2" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker2-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:none;stroke:context-stroke;stroke-width:1"
+         d="M 0,4 V -4"
+         id="path2-4" />
+    </marker>
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-316.48053,-279.81524)">
+    <path
+       d="M 667.02185,503.98925 505.21911,386.43261 343.41637,503.98925 Z"
+       style="fill:#ff6347;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       id="path38" />
+    <path
+       d="m 605.21915,313.77831 -100.00004,72.6543 161.80274,117.55664 z"
+       style="fill:#e0ffff;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       id="path37" />
+    <path
+       d="m 605.21915,313.77831 61.8027,190.21094 h 200 z"
+       style="fill:#ffdab9;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       id="path35" />
+    <g
+       id="layer1-59"
+       transform="translate(-621.27538,311.86238)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1107.281"
+         y="242.44449"
+         id="text24-5-6-0-49"><tspan
+           x="1107.281"
+           y="242.44449"
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round"
+           id="tspan51-6-09">|r|</tspan></text>
+    </g>
+    <g
+       id="layer1-59-2"
+       transform="translate(-354.86729,314.50752)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1107.281"
+         y="242.44449"
+         id="text24-5-6-0-49-4"><tspan
+           x="1107.281"
+           y="242.44449"
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round"
+           id="tspan51-6-09-7">|p|</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Stop);marker-end:url(#marker2)"
+       d="m 344.00955,524.49888 h 320.825"
+       id="path1" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Stop-9);marker-end:url(#marker2-5)"
+       d="m 666.83455,524.49888 h 198.8846"
+       id="path1-9" />
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       x="697.5235"
+       y="455.7619"
+       id="text2"><tspan
+         x="697.5235"
+         y="455.7619"
+         id="tspan2"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">X</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       x="492.6095"
+       y="469.70718"
+       id="text3"><tspan
+         x="492.6095"
+         y="469.70718"
+         id="tspan3"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">Y</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       x="580.86206"
+       y="414.61996"
+       id="text23-3"><tspan
+         x="580.86206"
+         y="414.61996"
+         id="tspan23-5"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Bold Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">C</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 767.02185,496.59595 v 14.7866"
+       id="path3" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 501.72147,496.59595 v 14.7866"
+       id="path3-5" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 505.21911,496.59595 v 14.7866"
+       id="path3-2" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 740.46618,402.90247 -8.69136,11.96261"
+       id="path3-5-4" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 743.29583,404.95834 -8.69135,11.96261"
+       id="path3-2-0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 590.46615,439.22962 -8.69134,11.96262"
+       id="path3-0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 428.66342,451.19223 -8.69136,-11.9626"
+       id="path3-0-4" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 643.15195,406.59912 -14.0629,4.56932"
+       id="path3-0-2" />
+  </g>
+</svg>

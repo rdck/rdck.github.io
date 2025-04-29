@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="1386"
+   height="1386"
+   viewBox="0 0 1386 1386"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   sodipodi:docname="decagon.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.99437574"
+     inkscape:cx="712.50733"
+     inkscape:cy="596.35405"
+     inkscape:window-width="3840"
+     inkscape:window-height="2110"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       sodipodi:type="star"
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       id="path1"
+       inkscape:flatsided="true"
+       sodipodi:sides="10"
+       sodipodi:cx="693"
+       sodipodi:cy="693"
+       sodipodi:r1="658.80769"
+       sodipodi:r2="626.56335"
+       sodipodi:arg1="3.1415927"
+       sodipodi:arg2="3.4557519"
+       inkscape:rounded="0"
+       inkscape:randomized="0"
+       d="M 34.192322,692.99997 160.01341,305.76254 489.41726,66.436655 l 407.16554,1.9e-5 329.4038,239.325916 125.8211,387.23744 -125.8211,387.23747 -329.40386,239.3258 -407.16554,0 -329.40383,-239.3259 z"
+       inkscape:label="DECAGON" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       d="M 693,693 160.01341,305.76254"
+       id="path5"
+       inkscape:label="t4" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       d="m 693,693 203.58274,626.5633"
+       id="path6"
+       inkscape:label="t8" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       d="M 693,693 896.5828,66.436674"
+       id="path7"
+       inkscape:label="t2" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       d="M 693,693 160.01337,1080.2374"
+       id="path8"
+       inkscape:label="t6" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linejoin:round"
+       d="m 693,693 658.8077,3e-5"
+       id="path4"
+       inkscape:label="1" />
+    <g
+       id="layer1-5"
+       transform="translate(-8.1190992,137.57711)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1028.5229"
+         y="535.00433"
+         id="text23-2-0"><tspan
+           x="1028.5229"
+           y="535.00433"
+           id="tspan23-54-5"
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">1</tspan></text>
+    </g>
+    <g
+       id="layer1-5-9"
+       transform="translate(-278.15648,-144.50318)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1028.5229"
+         y="535.00433"
+         id="text23-2-0-1"><tspan
+           x="1028.5229"
+           y="535.00433"
+           id="tspan23-54-5-2"
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">ζ<tspan
+   style="font-size:65%;baseline-shift:super"
+   id="tspan9">2</tspan></tspan></text>
+    </g>
+    <g
+       id="layer1-5-9-7"
+       transform="translate(-628.15765,17.052176)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1028.5229"
+         y="535.00433"
+         id="text23-2-0-1-9"><tspan
+           x="1028.5229"
+           y="535.00433"
+           id="tspan23-54-5-2-2"
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">ζ<tspan
+   style="font-size:65%;baseline-shift:super"
+   id="tspan16">4</tspan></tspan></text>
+    </g>
+    <g
+       id="layer1-5-9-7-2"
+       transform="translate(-602.65689,401.28407)">
+      <text
+         xml:space="preserve"
+         style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+         x="1028.5229"
+         y="535.00433"
+         id="text23-2-0-1-9-2"><tspan
+           sodipodi:role="line"
+           id="tspan18"
+           x="1028.5229"
+           y="535.00433"><tspan
+             x="1028.5229"
+             y="535.00433"
+             id="tspan23-54-5-2-2-8"
+             style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">ζ<tspan
+   style="font-size:65%;baseline-shift:super"
+   id="tspan15">6</tspan></tspan></tspan></text>
+    </g>
+    <g
+       id="layer1-1"
+       transform="translate(479.88122,432.82696)">
+      <g
+         id="layer1-5-9-7-29"
+         transform="translate(-691.16357,49.23317)">
+        <text
+           xml:space="preserve"
+           style="font-size:32px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffdab9;fill-opacity:1;stroke:#000000;stroke-width:2;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+           x="1028.5229"
+           y="535.00433"
+           id="text23-2-0-1-9-3"><tspan
+             x="1028.5229"
+             y="535.00433"
+             id="tspan23-54-5-2-2-1"
+             style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:semi-condensed;font-size:32px;font-family:'DejaVu Serif';-inkscape-font-specification:'DejaVu Serif Italic Semi-Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-linejoin:round">ζ<tspan
+   style="font-size:65%;baseline-shift:super"
+   id="tspan12">8</tspan></tspan></text>
+      </g>
+    </g>
+    <path
+       style="fill:none;fill-opacity:1;stroke:#818181;stroke-width:2;stroke-linejoin:round;stroke-opacity:1"
+       d="M 1351.8077,693.00003 896.5828,66.436674 160.01341,305.76254 l -4e-5,774.47486 736.56937,239.3259 z"
+       id="path19"
+       inkscape:label="PENTAGON" />
+  </g>
+</svg>

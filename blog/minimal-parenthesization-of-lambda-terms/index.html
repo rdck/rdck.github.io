@@ -1,0 +1,124 @@
+<html><head><title>Minimal Parenthesization of Lambda Terms</title><meta charset="UTF-8"><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="alternate" type="application/rss+xml" title="River Dillon" href="/feed.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inria%20Sans&amp;amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass%20Mono&amp;amp;display=swap"><script defer="" src="https://cloud.umami.is/script.js" data-website-id="f2da3301-a904-4d93-955c-2563c929103a"></script></head><body><header><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></header><h1>Minimal Parenthesization of Lambda Terms</h1><h3>2024-09-15</h3><p><em>Thanks to <a href="https://bernsteinbear.com/">Max Bernstein</a> for inspiring me to write this down.</em></p>
+<p>When writing a compiler, it's useful to be able to visualize the syntax tree as it gets processed. One simple way of doing so is to serialize the tree to text, using parentheses to specify the structure. The most naive approach is to simply wrap every subexpression in parentheses, which means we get representations that look like</p>
+<pre><code>(((((((((1 + 2) + 3) + 4) + 5) + 6) + 7) + 8) + 9) + 10)</code></pre>
+<p>even though a human would have probably written the term as</p>
+<pre><code>1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10</code></pre>
+<p>As terms become bigger, excessive parentheses make it hard to look at a term and quickly understand its structure. Max Bernstein has <a href="https://bernsteinbear.com/blog/precedence-printing/">written</a> about a simple algorithm that finds the minimal parenthesization necessary for terms in an arithmetic expression language. We'll apply the same idea to the <a href="https://en.wikipedia.org/wiki/Simply_typed_lambda_calculus">simply typed lambda calculus</a> (implemented in OCaml).</p>
+<h2 id="the-term-language"><a href="#the-term-language">The Term Language</a></h2>
+<p>Our calculus will have a single base type of machine integers:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> ty =</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  | Z64                 <span class="co">(* machine integers *)</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  | Arrow <span class="kw">of</span> ty * ty    <span class="co">(* functions        *)</span></span></code></pre></div>
+<p>We'll use strings as identifiers:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> identifier = <span class="dt">string</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">(* associate an identifier with some value *)</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> &#39;a binding = {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  name : identifier ;</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  value : &#39;a ;</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>We'll include primitive operations for integer addition, subtraction, multiplication, and exponentiation:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> binop =</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  | Add</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  | Sub</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  | Mul</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  | Exp</span></code></pre></div>
+<p>Expressions are defined as follows:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> expression =</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  | Lit <span class="kw">of</span> <span class="dt">int</span>                                  <span class="co">(* integer literal      *)</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  | Bin <span class="kw">of</span> binop * expression * expression      <span class="co">(* integer arithmetic   *)</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  | Var <span class="kw">of</span> identifier                           <span class="co">(* variable             *)</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  | App <span class="kw">of</span> expression * expression              <span class="co">(* function application *)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  | Abs <span class="kw">of</span> ty binding * expression              <span class="co">(* function abstraction *)</span></span></code></pre></div>
+<h2 id="representing-types"><a href="#representing-types">Representing Types</a></h2>
+<p>Let's start by considering the problem in the case of types, which have a relatively simple grammar. A naive implementation might look something like the following:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> print = <span class="dt">Printf</span>.sprintf</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> <span class="kw">rec</span> naive_show_ty : ty -&gt; <span class="dt">string</span> = <span class="kw">function</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  | Z64 -&gt; <span class="st">&quot;Z&quot;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  | Arrow (domain, codomain) -&gt;</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>      print <span class="st">&quot;(%s -&gt; %s)&quot;</span> (naive_show_ty domain) (naive_show_ty codomain)</span></code></pre></div>
+<p>This will represent the type <code>Arrow (Z64, Arrow (Z64, Z64))</code> as <code>(Z -&gt; (Z -&gt; Z))</code>. If we take function arrows to be right associative (as they conventionally are), then this could have been represented as <code>Z -&gt; Z -&gt; Z</code>.</p>
+<p>In the case of types, the only information we need is <em>whether we are on the left of a function arrow</em>, in which case an arrow will need to be parenthesized. We can pass that information down, recursively. The resulting algorithm is:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> show_ty : ty -&gt; <span class="dt">string</span> =</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="kw">rec</span> show (left : <span class="dt">bool</span>) = <span class="kw">function</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    | Z64 -&gt; <span class="st">&quot;Z&quot;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    | Arrow (domain, codomain) -&gt;</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> representation = print <span class="st">&quot;%s -&gt; %s&quot;</span> (show <span class="kw">true</span> domain) (show <span class="kw">false</span> codomain)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">in</span> <span class="kw">if</span> left <span class="kw">then</span> print <span class="st">&quot;(%s)&quot;</span> representation <span class="kw">else</span> representation <span class="kw">in</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  show <span class="kw">false</span></span></code></pre></div>
+<h2 id="representing-terms"><a href="#representing-terms">Representing Terms</a></h2>
+<p>The same kind of idea applies to the more complicated grammar of terms. <strong>The key insight is that parenthesization decisions require only local context: parentheses are necessary if and only if the precedence of an operation is less than or equal to the precedence of the parent.</strong> For example, the fact that <code>3 + 4</code> must be parenthesized in <code>1 + 2 * (3 + 4) - 5</code> depends only on the fact that <code>+</code> has lower precedence than <code>*</code>.</p>
+<p>As we descend the syntax tree, we'll pass down the precedence of each parent. In other words, we'll pass down the minimum precedence needed to avoid parenthesization at each step. (Associativity may be understood as requiring one less level of precedence on the associative side.)</p>
+<p>Here's the precedence and associativity table for our expression language:</p>
+<pre><code>OPERATION     PRECEDENCE  ASSOCIATIVITY
+lambda        1           n/a
++             2           left
+-             2           left
+*             3           left
+^             4           right
+application   5           left</code></pre>
+<p>We'll express our text serialization algorithm in terms of nullary, unary, and binary operations with precedence and associativity. To do this, we'll define a data structure that captures the relevant properties of an operation:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> associativity =</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  | Left</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  | Right</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> precedence = <span class="dt">int</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> operation =</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  | Nullary</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  | Unary   <span class="kw">of</span> precedence * expression</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* associativity is only applicable in the case of binary operations *)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  | Binary  <span class="kw">of</span> precedence * associativity * expression * expression</span></code></pre></div>
+<p>Mapping our expression language into this form is straightforward:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> structure : expression -&gt; operation = <span class="kw">function</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  | Lit _ -&gt; Nullary</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  | Bin (op, lhs, rhs) -&gt;</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>      <span class="kw">begin</span> <span class="kw">match</span> op <span class="kw">with</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>      | Add -&gt; Binary (<span class="dv">2</span>, Left , lhs, rhs)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>      | Sub -&gt; Binary (<span class="dv">2</span>, Left , lhs, rhs)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>      | Mul -&gt; Binary (<span class="dv">3</span>, Left , lhs, rhs)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>      | Exp -&gt; Binary (<span class="dv">4</span>, Right, lhs, rhs)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">end</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>  | Var _ -&gt; Nullary</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>  | App (f, x) -&gt; Binary (<span class="dv">5</span>, Left, f, x)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>  | Abs (_, body) -&gt; Unary (<span class="dv">1</span>, body)</span></code></pre></div>
+<p>These precedence and associativity values could be read from some other source here, if we wanted to share the data with a parser.</p>
+<p>Notice that lambda abstraction is a unary operator, but it doesn't have a constant textual representation in the way that the arithmetic operators do. To account for this, we'll express the representation of a node as a function:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> node_text : expression -&gt; <span class="dt">string</span> = <span class="kw">function</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  | Lit i -&gt; print <span class="st">&quot;%d&quot;</span> i</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  | Bin (Add, _, _) -&gt; <span class="st">&quot; + &quot;</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  | Bin (Sub, _, _) -&gt; <span class="st">&quot; - &quot;</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  | Bin (Mul, _, _) -&gt; <span class="st">&quot; * &quot;</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  | Bin (Exp, _, _) -&gt; <span class="st">&quot; ^ &quot;</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  | Var id -&gt; id</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  | App _ -&gt; <span class="st">&quot; &quot;</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  | Abs ({ name ; value = domain }, _) -&gt;</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>      print <span class="st">&quot;λ %s : %s . &quot;</span> name (show_ty domain)</span></code></pre></div>
+<p>At this point, we're ready to write the complete serializer:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> show_expression : expression -&gt; <span class="dt">string</span> =</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* wrap a string in parentheses when a condition is met *)</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> wrap (s : <span class="dt">string</span>) (condition : <span class="dt">bool</span>) =</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> condition <span class="kw">then</span> print <span class="st">&quot;(%s)&quot;</span> s <span class="kw">else</span> s <span class="kw">in</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="kw">rec</span> show (p : precedence) (expr : expression) =</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> atom = node_text expr <span class="kw">in</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">match</span> structure expr <span class="kw">with</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    | Nullary -&gt; atom</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    | Unary (p&#39;, e) -&gt;</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> s = print <span class="st">&quot;%s%s&quot;</span> atom (show (p&#39; - <span class="dv">1</span>) e) <span class="kw">in</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        wrap s (p&#39; &lt;= p)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    | Binary (p&#39;, assoc, lhs, rhs) -&gt;</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> (left, right) = <span class="kw">match</span> assoc <span class="kw">with</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        | Left  -&gt; (p&#39; - <span class="dv">1</span>, p&#39;)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        | Right -&gt; (p&#39;, p&#39; - <span class="dv">1</span>) <span class="kw">in</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> s = print <span class="st">&quot;%s%s%s&quot;</span> (show left lhs) atom (show right rhs) <span class="kw">in</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        wrap s (p&#39; &lt;= p) <span class="kw">in</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>  show <span class="dv">0</span></span></code></pre></div>
+<p>For unary and binary operators, the pattern is the same: we compare the precedence of the subterm we're looking at (p') to the minimum precedence passed down by the parent (p). When p' isn't greater than the minimum, we wrap the subterm in parentheses. When an operator is left or right associative, we subtract one from the minimum precedence to pass down on the left or right, respectively.</p>
+<p>This gives us representations that look like this:</p>
+<pre><code>(λ a : Z . λ b : Z . a + b) 1 2 * (λ a : Z . λ b : Z . a - b) 3 4</code></pre>
+<h2 id="resources"><a href="#resources">Resources</a></h2>
+<p>The source code in this document is available <a href="https://github.com/rdck/minimal-parenthesization">here</a>. Max Bernstein has an <a href="https://bernsteinbear.com/blog/precedence-printing/">implementation</a> that inspired this article. There is a nice <a href="https://softwarefoundations.cis.upenn.edu/plf-current/Stlc.html">chapter</a> on the simply typed lambda calculus in <a href="https://softwarefoundations.cis.upenn.edu/">Software Foundations</a>.</p><footer><ul class="navigation"><li class="navigation-item"><a href="/">HOME</a></li><li class="navigation-item"><a href="/blog">BLOG</a></li><li class="navigation-item"><a href="/feed.xml">RSS</a></li></ul></footer></body></html>
